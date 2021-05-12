@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using UniGLTF.M17N;
 using UniJSON;
 using UnityEngine;
 using VRMShaders;
@@ -674,6 +675,121 @@ namespace UniGLTF
             var dummy = JsonUtility.FromJson<Dummy>("{}");
             Assert.NotNull(dummy.Value);
             Assert.False(dummy.Value.Value);
+        }
+
+        class ValidationErrorLevelAndMessageEqualityComparer : IEqualityComparer<Validation>
+        {
+            public bool Equals(Validation v1, Validation v2)
+            {
+                return v1.ErrorLevel == v2.ErrorLevel
+                    && v1.Message == v2.Message;
+            }
+
+            public int GetHashCode(Validation v)
+            {
+                return (v.ErrorLevel.GetHashCode() ^ v.Message.GetHashCode())
+                    .GetHashCode();
+            }
+        }
+
+        [Test]
+        public void ValidateNullMaterialsTest()
+        {
+            var comparator = new ValidationErrorLevelAndMessageEqualityComparer();
+
+            {
+                var validator = ScriptableObject.CreateInstance<MeshExportValidator>();
+                var root = new GameObject("root");
+
+                try
+                {
+                    var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    cube.transform.SetParent(root.transform);
+
+                    var renderer = cube.GetComponent<Renderer>();
+                    renderer.sharedMaterials = new Material[0];
+
+                    validator.SetRoot(root, MeshExportSettings.Default);
+                    var vs = validator.Validate(root);
+
+                    Assert.False(vs.All(x => x.CanExport));
+                    Assert.True(vs.SequenceEqual(
+                        new Validation[]
+                        {
+                            Validation.Error(MeshExportValidator.Messages.DIFFERENT_MATERIAL_COUNT.Msg())
+                        },
+                        comparator
+                    ));
+                }
+                finally
+                {
+                    GameObject.DestroyImmediate(root);
+                    ScriptableObject.DestroyImmediate(validator);
+                }
+            }
+
+            {
+                var validator = ScriptableObject.CreateInstance<MeshExportValidator>();
+                var root = new GameObject("root");
+
+                try
+                {
+                    var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    cube.transform.SetParent(root.transform);
+
+                    var renderer = cube.GetComponent<Renderer>();
+                    renderer.sharedMaterials = new Material[] { null };
+
+                    validator.SetRoot(root, MeshExportSettings.Default);
+                    var vs = validator.Validate(root);
+
+                    Assert.False(vs.All(x => x.CanExport));
+                    Assert.True(vs.SequenceEqual(
+                        new Validation[]
+                        {
+                            Validation.Error($"{renderer}: {MeshExportValidator.Messages.MATERIALS_CONTAINS_NULL.Msg()}")
+                        },
+                        comparator
+                    ));
+                }
+                finally
+                {
+                    GameObject.DestroyImmediate(root);
+                    ScriptableObject.DestroyImmediate(validator);
+                }
+            }
+
+            {
+                var validator = ScriptableObject.CreateInstance<MeshExportValidator>();
+                var root = new GameObject("root");
+
+                try
+                {
+                    var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    cube.transform.SetParent(root.transform);
+
+                    var renderer = cube.GetComponent<Renderer>();
+                    renderer.sharedMaterials = new Material[] { null, null };
+
+                    validator.SetRoot(root, MeshExportSettings.Default);
+                    var vs = validator.Validate(root);
+
+                    Assert.False(vs.All(x => x.CanExport));
+                    Assert.True(vs.SequenceEqual(
+                        new Validation[]
+                        {
+                            Validation.Warning(MeshExportValidator.Messages.DIFFERENT_MATERIAL_COUNT.Msg()),
+                            Validation.Error($"{renderer}: {MeshExportValidator.Messages.MATERIALS_CONTAINS_NULL.Msg()}")
+                        },
+                        comparator
+                    ));
+                }
+                finally
+                {
+                    GameObject.DestroyImmediate(root);
+                    ScriptableObject.DestroyImmediate(validator);
+                }
+            }
         }
     }
 }

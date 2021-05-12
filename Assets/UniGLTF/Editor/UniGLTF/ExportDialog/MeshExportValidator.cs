@@ -213,7 +213,8 @@ namespace UniGLTF
                     // 未使用の material がある
                     yield return Validation.Warning(Messages.DIFFERENT_MATERIAL_COUNT.Msg());
                 }
-                else if (info.Renderer.sharedMaterials.Any(x => x == null))
+
+                if (info.Renderer.sharedMaterials.Any(x => x == null))
                 {
                     // material に null が含まれる(unity で magenta になっているはず)
                     yield return Validation.Error($"{info.Renderer}: {Messages.MATERIALS_CONTAINS_NULL.Msg()}");
